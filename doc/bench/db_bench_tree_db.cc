@@ -46,6 +46,9 @@ static int FLAGS_reads = -1;
 // Size of each value
 static int FLAGS_value_size = 100;
 
+// Size of each key
+static int FLAGS_key_size = 100;
+
 // Arrange to generate values that shrink to this fraction of
 // their original size after compression
 static double FLAGS_compression_ratio = 0.5;
@@ -386,15 +389,14 @@ class Benchmark {
   }
 
  private:
-    void Open(bool sync) {
+   void Open(bool sync) {
     assert(db_ == nullptr);
 
     // Initialize db_
     db_ = new kyotocabinet::TreeDB();
     char file_name[100];
     db_num_++;
-    std::string test_dir;
-    Env::Default()->GetTestDirectory(&test_dir);
+    std::string test_dir = FLAGS_db;
     snprintf(file_name, sizeof(file_name),
              "%s/dbbench_polyDB-%d.kct",
              test_dir.c_str(),
@@ -441,14 +443,15 @@ class Benchmark {
       message_ = msg;
     }
 
+    char key[100];
     // Write to database
     for (int i = 0; i < num_entries; i++)
     {
       const int k = (order == SEQUENTIAL) ? i : (rand_.Next() % num_entries);
-      char key[100];
       snprintf(key, sizeof(key), "%016d", k);
-      bytes_ += value_size + strlen(key);
+      bytes_ += value_size + FLAGS_key_size;
       std::string cpp_key = key;
+      cpp_key.insert(cpp_key.begin(), FLAGS_key_size - 16, ' ');
       if (!db_->set(cpp_key, gen_.Generate(value_size).ToString())) {
         fprintf(stderr, "set error: %s\n", db_->error().name());
       }
@@ -473,7 +476,9 @@ class Benchmark {
       char key[100];
       const int k = rand_.Next() % reads_;
       snprintf(key, sizeof(key), "%016d", k);
-      db_->get(key, &value);
+      std::string cpp_key = key;
+      cpp_key.insert(cpp_key.begin(), FLAGS_key_size - 16, ' ');
+      db_->get(cpp_key, &value);
       FinishedSingleOp();
     }
   }
@@ -496,6 +501,8 @@ int main(int argc, char** argv) {
       FLAGS_histogram = n;
     } else if (sscanf(argv[i], "--num=%d%c", &n, &junk) == 1) {
       FLAGS_num = n;
+    } else if (sscanf(argv[i], "--key_size=%d%c", &n, &junk) == 1) {
+      FLAGS_key_size = n;
     } else if (sscanf(argv[i], "--reads=%d%c", &n, &junk) == 1) {
       FLAGS_reads = n;
     } else if (sscanf(argv[i], "--value_size=%d%c", &n, &junk) == 1) {
