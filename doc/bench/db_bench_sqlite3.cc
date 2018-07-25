@@ -50,6 +50,9 @@ static int FLAGS_reads = -1;
 // Size of each value
 static int FLAGS_value_size = 100;
 
+// Size of each key
+static int FLAGS_key_size = 100;
+
 // Print histogram of operation timings
 static bool FLAGS_histogram = false;
 
@@ -424,8 +427,7 @@ class Benchmark {
     db_num_++;
 
     // Open database
-    std::string tmp_dir;
-    Env::Default()->GetTestDirectory(&tmp_dir);
+    std::string tmp_dir = FLAGS_db;
     snprintf(file_name, sizeof(file_name),
              "%s/dbbench_sqlite3-%d.db",
              tmp_dir.c_str(),
@@ -542,9 +544,11 @@ class Benchmark {
                       (rand_.Next() % num_entries);
         char key[100];
         snprintf(key, sizeof(key), "%016d", k);
+	std::string cpp_key = key;
+	cpp_key.insert(cpp_key.begin(), FLAGS_key_size - 16, ' ');
 
         // Bind KV values into replace_stmt
-        status = sqlite3_bind_blob(replace_stmt, 1, key, 16, SQLITE_STATIC);
+        status = sqlite3_bind_blob(replace_stmt, 1, cpp_key.c_str(), FLAGS_key_size, SQLITE_STATIC);
         ErrorCheck(status);
         status = sqlite3_bind_blob(replace_stmt, 2, value,
                                    value_size, SQLITE_STATIC);
@@ -615,9 +619,11 @@ class Benchmark {
         char key[100];
         int k = (order == SEQUENTIAL) ? i + j : (rand_.Next() % reads_);
         snprintf(key, sizeof(key), "%016d", k);
+	std::string cpp_key = key;
+	cpp_key.insert(cpp_key.begin(), FLAGS_key_size - 16, ' ');
 
         // Bind key value into read_stmt
-        status = sqlite3_bind_blob(read_stmt, 1, key, 16, SQLITE_STATIC);
+        status = sqlite3_bind_blob(read_stmt, 1, cpp_key.c_str(), FLAGS_key_size, SQLITE_STATIC);
         ErrorCheck(status);
 
         // Execute read statement
@@ -691,6 +697,8 @@ int main(int argc, char** argv) {
       FLAGS_reads = n;
     } else if (sscanf(argv[i], "--value_size=%d%c", &n, &junk) == 1) {
       FLAGS_value_size = n;
+    } else if (sscanf(argv[i], "--key_size=%d%c", &n, &junk) == 1) {
+      FLAGS_key_size = n;
     } else if (leveldb::Slice(argv[i]) == leveldb::Slice("--no_transaction")) {
       FLAGS_transaction = false;
     } else if (sscanf(argv[i], "--page_size=%d%c", &n, &junk) == 1) {
