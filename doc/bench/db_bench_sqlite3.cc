@@ -183,7 +183,7 @@ class Benchmark {
   int next_report_;     // When to report next
 
   void PrintHeader() {
-    const int kKeySize = 16;
+    const int kKeySize = FLAGS_key_size;
     PrintEnvironment();
     fprintf(stdout, "Keys:       %d bytes each\n", kKeySize);
     fprintf(stdout, "Values:     %d bytes each\n", FLAGS_value_size);
@@ -406,6 +406,30 @@ class Benchmark {
         reads_ /= 1000;
         Read(RANDOM, 1);
         reads_ = n;
+      } else if (name == Slice("affine")) {
+	// prepare data and warm cache
+	Write(write_sync, SEQUENTIAL, FRESH, num_, FLAGS_value_size, 1);
+	WalCheckpoint(db_);
+	Stop(Slice("affineprepdata"));
+	reads_ = num_ / 100;
+	Start();
+	Read(RANDOM, 1);
+	Stop(Slice("affinewarmcache"));
+
+	// read random keys
+	reads_ = num_ / 1000;
+	Start();
+	Read(RANDOM, 1);
+	Stop(Slice("affinequery"));
+
+	// overwrite a lot of keys
+	Start();
+	Write(write_sync, RANDOM, EXISTING, num_/1000, FLAGS_value_size, 1);
+	WalCheckpoint(db_);
+	Stop(Slice("affineinsert"));
+
+	// prevent another stop
+	known = false;
       } else {
         known = false;
         if (name != Slice()) {  // No error message for empty name
@@ -541,7 +565,7 @@ class Benchmark {
 
         // Create values for key-value pair
         const int k = (order == SEQUENTIAL) ? i + j :
-                      (rand_.Next() % num_entries);
+                      (rand_.Next() % num_);
         char key[100];
         snprintf(key, sizeof(key), "%016d", k);
 	std::string cpp_key = key;
@@ -617,7 +641,7 @@ class Benchmark {
       for (int j = 0; j < entries_per_batch; j++) {
         // Create key value
         char key[100];
-        int k = (order == SEQUENTIAL) ? i + j : (rand_.Next() % reads_);
+        int k = (order == SEQUENTIAL) ? i + j : (rand_.Next() % num_);
         snprintf(key, sizeof(key), "%016d", k);
 	std::string cpp_key = key;
 	cpp_key.insert(cpp_key.begin(), FLAGS_key_size - 16, ' ');
