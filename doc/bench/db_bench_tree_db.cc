@@ -378,7 +378,7 @@ class Benchmark {
         reads_ = n;
       } else if (name == Slice("affine")) {
 	// prepare data and warm cache
-	Write(write_sync, SEQUENTIAL, FRESH, num_, FLAGS_value_size, 1);
+	Write(write_sync, SEQUENTIAL, FRESH, num_, FLAGS_value_size, 1, 1);
 	DBSynchronize(db_);
 	Stop(Slice("affineprepdata"));
 	reads_ = num_/100;
@@ -448,7 +448,8 @@ class Benchmark {
   }
 
   void Write(bool sync, Order order, DBState state,
-             int num_entries, int value_size, int entries_per_batch) {
+             int num_entries, int value_size, int entries_per_batch, 
+	     int intermediate_sync = 0) {
     // Create new database if state == FRESH
     if (state == FRESH) {
       if (FLAGS_use_existing_db) {
@@ -478,6 +479,9 @@ class Benchmark {
       cpp_key.insert(cpp_key.begin(), FLAGS_key_size - 16, ' ');
       if (!db_->set(cpp_key, gen_.Generate(value_size).ToString())) {
         fprintf(stderr, "set error: %s\n", db_->error().name());
+      }
+      if (intermediate_sync && num_entries % 1000 == 0) {
+      	DBSynchronize(db_);
       }
       FinishedSingleOp();
     }
